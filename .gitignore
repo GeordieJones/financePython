@@ -1,2 +1,4 @@
 .DS_Store
 .ipynb_checkpoints/
+bookPractice/finance_timeSeries/flash/*.csv
+bookPractice/finance_timeSeries/flash/*.h5
