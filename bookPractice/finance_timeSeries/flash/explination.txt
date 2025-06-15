@@ -1,0 +1,4 @@
+this folder is where all the data and data tables get put
+I have limited memory on my device so I put it in this folder when in use
+then delete so it may look empty but it is where files get put through the 
+notebook
