@@ -18,11 +18,12 @@ print(f"Data shape: {data.shape}")
 print("First 5 rows:")
 print(data[:5])
 '''
-cash = df_reset.at[0, 'Close']
+cash = 500
 shares = 0
 onhand = []
 cashShare = []
-for i in range(len(df)):
+
+'''for i in range(len(df)):
     sharecost = df_reset.at[i, 'Close']
     if i == 0:
         while cash >= sharecost:
@@ -44,7 +45,20 @@ for i in range(len(df)):
 df_reset['Cash'] = onhand
 df_reset['Net Worth'] = cashShare
 
-arr = df_reset[['Date_str', 'Close', 'Cash', 'Net Worth']].to_numpy()
+arr = df_reset[['Date_str', 'Close', 'Cash', 'Net Worth']].to_numpy()'''
+money = 0
+for i in range(2, len(df)):
+    sharecost = df_reset.at[i-1, 'Close']
+    prev_price = df_reset.at[i-2, 'Close']
+    if sharecost > prev_price:
+        amount  = cash / sharecost
+        money += amount * (df_reset.at[i-1, 'Close'] - df_reset.at[i-1, 'Open'])
+        cash = cash%sharecost + money
+
+    onhand.append(money)
+#needed to add pading should be fixed later
+df_reset['Profit'] = [None, None] + onhand
+arr = df_reset[['Date_str', 'Close', 'Profit']].to_numpy()
 
 print(arr[-5:])
 
@@ -53,7 +67,7 @@ plt.figure(figsize=(12, 6))
 
 
 plt.plot(df_reset['Date'], df_reset['Close'], label='Close Price', color='blue')
-plt.plot(df_reset['Date'], df_reset['Net Worth'], label='Net Worth', color='green')
+plt.plot(df_reset['Date'], df_reset['Profit'], label='Gain', color='green')
 
 
 
