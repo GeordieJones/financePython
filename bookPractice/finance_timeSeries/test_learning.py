@@ -18,47 +18,53 @@ print(f"Data shape: {data.shape}")
 print("First 5 rows:")
 print(data[:5])
 '''
-cash = 500
+knowncash = 500
 shares = 0
 onhand = []
+totalGuess = []
+onhand_known = []
 cashShare = []
 
-'''for i in range(len(df)):
+for i in range(len(df)):
     sharecost = df_reset.at[i, 'Close']
     if i == 0:
-        while cash >= sharecost:
+        while knowncash >= sharecost:
             shares += 1
-            cash -= sharecost
+            knowncash -= sharecost
     else:
         prev_price = df_reset.at[i-1, 'Close']
         if sharecost > prev_price:
-            while cash > sharecost:
+            while knowncash > sharecost:
                 shares += 1
-                cash -= sharecost
+                knowncash -= sharecost
         else:
-            cash += (shares*sharecost)
+            knowncash += (shares*sharecost)
             shares = 0
-    net_worth = cash + shares * sharecost
-    onhand.append(cash)
+    net_worth = knowncash + shares * sharecost
+    onhand_known.append(knowncash)
     cashShare.append(net_worth)
 
-df_reset['Cash'] = onhand
+df_reset['Cash'] = onhand_known
 df_reset['Net Worth'] = cashShare
 
-arr = df_reset[['Date_str', 'Close', 'Cash', 'Net Worth']].to_numpy()'''
+
 money = 0
+cash = 500
 for i in range(2, len(df)):
     sharecost = df_reset.at[i-1, 'Close']
     prev_price = df_reset.at[i-2, 'Close']
+    org = cash
     if sharecost > prev_price:
-        amount  = cash / sharecost
-        money += amount * (df_reset.at[i-1, 'Close'] - df_reset.at[i-1, 'Open'])
-        cash = cash%sharecost + money
-
-    onhand.append(money)
+        amount  = (int)(cash / df_reset.at[i, 'Open'])
+        profit = (amount * (df_reset.at[i, 'Close'] - df_reset.at[i, 'Open']))
+        cash += profit
+    guess_worth = cash
+    onhand.append(cash - org)
+    totalGuess.append(guess_worth)
 #needed to add pading should be fixed later
 df_reset['Profit'] = [None, None] + onhand
-arr = df_reset[['Date_str', 'Close', 'Profit']].to_numpy()
+df_reset['Guess Worth'] = [None, None] + totalGuess
+arr = df_reset[['Date_str', 'Close', 'Profit', 'Guess Worth' ,'Cash', 'Net Worth']].to_numpy()
 
 print(arr[-5:])
 
@@ -67,9 +73,9 @@ plt.figure(figsize=(12, 6))
 
 
 plt.plot(df_reset['Date'], df_reset['Close'], label='Close Price', color='blue')
-plt.plot(df_reset['Date'], df_reset['Profit'], label='Gain', color='green')
-
-
+plt.plot(df_reset['Date'], df_reset['Profit'], label='movement trading guess profit', color='green')
+plt.plot(df_reset['Date'], df_reset['Net Worth'], label='known movement', color='red')
+plt.plot(df_reset['Date'], df_reset['Guess Worth'], label='total guess money', color='purple')
 
 plt.xlabel('Date')
 plt.ylabel('Closing Price (USD)')
