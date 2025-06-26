@@ -18,7 +18,7 @@ print(f"Data shape: {data.shape}")
 print("First 5 rows:")
 print(data[:5])
 '''
-knowncash = 500
+knowncash = 600
 shares = 0
 onhand = []
 totalGuess = []
@@ -49,14 +49,14 @@ df_reset['Net Worth'] = cashShare
 
 
 money = 0
-cash = 500
+cash = 600
 hold_amount =100
 for i in range(2, len(df)):
     sharecost = df_reset.at[i-1, 'Close']
     prev_price = df_reset.at[i-2, 'Close']
     org = cash
     if sharecost > prev_price:
-        amount  = (int)((cash -hold_amount) / df_reset.at[i, 'Open'])
+        amount  = (int)((cash -hold_amount) / df_reset.at[i, 'Open']) -1
         profit = (amount * (df_reset.at[i, 'Close'] - df_reset.at[i, 'Open']))
         cash += profit
     guess_worth = cash
