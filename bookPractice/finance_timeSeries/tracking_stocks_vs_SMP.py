@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from functools import reduce
 
-portfolio = [('KO', 8), ('AMZN', 4), ('GOOG', 4)]
+portfolio = [('KO', 8), ('AMZN', 4),('GOOG', 4)]
 
 dfs = []
 for ticker_symbol, quantity in portfolio:
