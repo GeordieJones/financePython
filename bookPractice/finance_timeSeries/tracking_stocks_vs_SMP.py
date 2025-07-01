@@ -17,7 +17,7 @@ for ticker_symbol, quantity in portfolio:
     dfs.append(df)
 
 portfolio_df = reduce(lambda left, right: pd.merge(left, right, on='Date_str', how='outer'), dfs)
-portfolio_df = portfolio_df.fillna(0)
+portfolio_df = portfolio_df.fillna(method='ffill')
 portfolio_df['total'] = portfolio_df[[t[0] for t in portfolio]].sum(axis=1)
 
 
@@ -29,6 +29,21 @@ df_reset = df.reset_index()
 df_reset['Date_str'] = df_reset['Date'].dt.strftime('%Y-%m-%d')
 # Scale S&P 500 close prices to match portfolio starting point (roughly)
 df_reset['Close_scaled'] = df_reset['Close'] * 0.31
+
+
+
+comparison_df = pd.merge(
+    portfolio_df[['Date_str', 'total']],
+    df_reset[['Date_str', 'Close_scaled']],
+    on='Date_str',
+    how='inner'
+)
+
+# Calculate difference on matched dates
+comparison_df['difference'] = comparison_df['total'] - comparison_df['Close_scaled']
+
+# Convert Date_str to datetime for plotting
+comparison_df['Date'] = pd.to_datetime(comparison_df['Date_str'])
 
 
 portfolio_df['Date'] = pd.to_datetime(portfolio_df['Date_str'])
@@ -57,14 +72,17 @@ print("S&P 500 close on last date ({}): ${:.2f}".format(
 
 plt.figure(figsize=(12, 6))
 
-plt.plot(df_reset['Date'], portfolio_df['total'], label='portfolio', color='blue')
-plt.plot(df_reset['Date'], df_reset['Close_scaled'], label='S&P 500', color='red')
+plt.plot(comparison_df['Date'], comparison_df['total'], label='Portfolio', color='blue')
+plt.plot(comparison_df['Date'], comparison_df['Close_scaled'], label='S&P 500 (scaled)', color='red')
+plt.plot(comparison_df['Date'], comparison_df['difference'], label='Difference', color='green')
+
 plt.xlabel('Date')
-plt.ylabel('Closing Price (USD)')
-plt.title('my portfolio VS. S&P 500')
+plt.ylabel('Value')
+plt.title('My Portfolio vs. S&P 500')
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
 plt.show()
+
 
 
