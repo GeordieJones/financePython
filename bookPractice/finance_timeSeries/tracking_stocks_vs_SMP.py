@@ -19,7 +19,8 @@ for ticker_symbol, quantity in portfolioWnivida:
     dfsWnivida.append(df)
 
 portfolio_Nvida_df = reduce(lambda left, right: pd.merge(left, right, on='Date_str', how='outer'), dfsWnivida)
-portfolio_Nvida_df = portfolio_Nvida_df.fillna(method='ffill')
+#portfolio_Nvida_df = portfolio_Nvida_df.fillna(method='ffill')
+portfolio_Nvida_df = portfolio_Nvida_df.ffill()
 portfolio_Nvida_df['total'] = portfolio_Nvida_df[[t[0] for t in portfolioWnivida]].sum(axis=1)
 
 
@@ -36,7 +37,8 @@ for ticker_symbol, quantity in portfolio:
 
 
 portfolio_df = reduce(lambda left, right: pd.merge(left, right, on='Date_str', how='outer'), dfs)
-portfolio_df = portfolio_df.fillna(method='ffill')
+#portfolio_df = portfolio_df.fillna(method='ffill')
+portfolio_df = portfolio_df.ffill()
 portfolio_df['total'] = portfolio_df[[t[0] for t in portfolio]].sum(axis=1)
 
 
