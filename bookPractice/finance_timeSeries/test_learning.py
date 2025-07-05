@@ -67,10 +67,38 @@ def unknownTrading():
     df_reset['Profit'] = [None, None] + onhand
     df_reset['Guess Worth'] = [None, None] + totalGuess
 
+def inverseTrading():
+    cash = 600
+    onhand = []
+    net_worth = []
+    last_trade_price = df_reset.at[0, 'Close']
+    hold_amount =100
+    for i in range(1, len(df)):
+        current_price = df_reset.at[i-1, 'Close']
+        if current_price <= last_trade_price - 5 and cash >= current_price:
+            shares += 1
+            cash -= current_price
+            last_trade_price = current_price  # Reset reference price
+        # Sell one share if price increases by $5 or more and you have shares
+        elif current_price >= last_trade_price + 5 and shares > 0:
+            shares -= 1
+            cash += current_price
+            last_trade_price = current_price  # Reset reference price
+
+        total = cash + shares * current_price
+        onhand.append(cash)
+        net_worth.append(total)
+
+    # Padding to align with df index (first day has no trade)
+    df_reset['Inverse Cash'] = [None] + onhand
+    df_reset['Inverse Worth'] = [None] + net_worth
+
+
 
 knowTrading()
 unknownTrading()
-arr = df_reset[['Date_str', 'Close', 'Profit', 'Guess Worth' ,'Cash', 'Net Worth']].to_numpy()
+inverseTrading()
+arr = df_reset[['Date_str', 'Close', 'Profit', 'Guess Worth' ,'Cash', 'Net Worth','Inverse Cash', 'Inverse Worth']].to_numpy()
 
 print(arr[-5:])
 
