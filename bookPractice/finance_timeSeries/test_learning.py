@@ -72,7 +72,7 @@ def inverseTrading():
     onhand = []
     net_worth = []
     last_trade_price = df_reset.at[0, 'Close']
-    hold_amount =100
+    shares = 0
     for i in range(1, len(df)):
         current_price = df_reset.at[i-1, 'Close']
         if current_price <= last_trade_price - 5 and cash >= current_price:
@@ -98,7 +98,7 @@ def inverseTrading():
 knowTrading()
 unknownTrading()
 inverseTrading()
-arr = df_reset[['Date_str', 'Close', 'Profit', 'Guess Worth' ,'Cash', 'Net Worth','Inverse Cash', 'Inverse Worth']].to_numpy()
+arr = df_reset[['Date_str', 'Close', 'Profit', 'Guess Worth' ,'Cash', 'Net Worth', 'Inverse Worth']].to_numpy()
 
 print(arr[-5:])
 
@@ -110,6 +110,7 @@ plt.plot(df_reset['Date'], df_reset['Close'], label='Close Price', color='blue')
 plt.plot(df_reset['Date'], df_reset['Profit'], label='movement trading guess profit', color='green')
 plt.plot(df_reset['Date'], df_reset['Net Worth'], label='known movement', color='red')
 plt.plot(df_reset['Date'], df_reset['Guess Worth'], label='total guess money', color='purple')
+plt.plot(df_reset['Date'], df_reset['Inverse Worth'], label='total Inverse money', color='orange')
 
 plt.xlabel('Date')
 plt.ylabel('Closing Price (USD)')
