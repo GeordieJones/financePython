@@ -73,13 +73,15 @@ def inverseTrading():
     net_worth = []
     last_trade_price = df_reset.at[0, 'Close']
     shares = 0
+    holdamount = 250
     for i in range(1, len(df)):
         current_price = df_reset.at[i-1, 'Close']
-        if current_price <= last_trade_price - 5 and cash >= current_price:
-            shares += 1
-            cash -= current_price
-            last_trade_price = current_price  # Reset reference price
-        # Sell one share if price increases by $5 or more and you have shares
+        if current_price <= last_trade_price - 5:
+            max_affordable = int((cash - holdamount) / current_price)
+            if max_affordable > 0:
+                shares += max_affordable
+                cash -= max_affordable * current_price
+                last_trade_price = current_price
         elif current_price >= last_trade_price + 5 and shares > 0:
             shares -= 1
             cash += current_price
