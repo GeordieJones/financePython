@@ -272,4 +272,4 @@ def run_predict(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_
     next_prediction(X_new, model, offset, preprocessor)
 
 
-run_predict('AAPL')
+run_predict('TSLA')
