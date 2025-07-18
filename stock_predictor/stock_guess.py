@@ -126,20 +126,41 @@ def prediction(X_all, y_all, time_data):
     # now need to match best hights
 
     y_pred = np.array(y_pred)
-    y_test = np.array(y_test)
+    np_y_test = np.array(y_test)
     offset = np.mean(y_test - y_pred)
     y_pred_adjusted = y_pred + offset
 
     #adding the predicted price change of the last day to the price of the current day
 
-    current_close = time_data['Close'].values[-len(y_test):]
+    current_close = time_data['Close'].values[-len(np_y_test):]
     predicted_close = current_close + y_pred_adjusted
 
-    print("MSE:", mean_squared_error(y_test, y_pred))
-    print("R2:", r2_score(y_test, y_pred))
-    
     return model, y_test, predicted_close
 
+def plot_predictions(y_test, predicted_close, time_data):
+    actual_close = time_data.loc[y_test.index, 'Close']
+    predicted_series = pd.Series(predicted_close, index=y_test.index)
+    mse = mean_squared_error(actual_close, predicted_series)
+    r2 = r2_score(actual_close, predicted_series)
+
+    print("MSE:", mse)
+    print("R2:", r2)
+    plt.figure(figsize=(10,6))
+    plt.plot(actual_close, label='Actual Price', alpha=0.7)
+    plt.plot(predicted_series, label='Predicted Price', alpha=0.7)
+    plt.title('Gradient Boosting: Actual vs Predicted Price')
+    plt.xlabel('Date')
+    plt.ylabel('Price')
+    plt.legend()
+    plt.show()
 
 
-print(get_metrics(ticker='AAPL'))
+
+def run_test(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_free_rate=0, lag_time='week'):
+    data = get_metrics(ticker, start_check = start_check, end_check=end_check, risk_free_rate = risk_free_rate)
+    X_all, y_all, time_data = create_params(data, lag_time=lag_time)
+    model, y_test, predicted_close = prediction(X_all, y_all, time_data)
+    plot_predictions(y_test, predicted_close, time_data)
+
+
+run_test('MSFT')
