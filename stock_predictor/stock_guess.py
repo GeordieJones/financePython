@@ -262,6 +262,7 @@ def next_prediction(X_new, model, offset, preprocessor):
     print(f'offset {offset}')
     print(f'predicted_adjusted= {pred_adjusted}')
     print(f'the next expected value is {final_guess}')
+    return final_guess
 
 
 def run_predict(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_free_rate=0, lag_time='week'):
@@ -269,7 +270,8 @@ def run_predict(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_
     X_all, y_all, time_data = create_params(data, lag_time=lag_time)
     model, y_test, predicted_close, offset, preprocessor = prediction(X_all, y_all, time_data)
     X_new = get_current_metrics(ticker)
-    next_prediction(X_new, model, offset, preprocessor)
+    guess = next_prediction(X_new, model, offset, preprocessor)
+    return guess
 
 
 run_predict('TSLA')
