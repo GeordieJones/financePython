@@ -8,6 +8,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
 from sklearn.metrics import mean_squared_error, r2_score
+from datetime import datetime, timedelta
 
 def get_metrics(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_free_rate=0):
     data = yf.download(ticker, start=start_check, end=end_check)
@@ -135,7 +136,11 @@ def prediction(X_all, y_all, time_data):
     current_close = time_data['Close'].values[-len(np_y_test):]
     predicted_close = current_close + y_pred_adjusted
 
-    return model, y_test, predicted_close
+    mse = mean_squared_error(current_close, predicted_close)
+    r2 = r2_score(current_close, predicted_close)
+    print(f'\n\n mse: {mse}\nr2: {r2}\n\n')
+
+    return model, y_test, predicted_close, offset, preprocessor
 
 def plot_predictions(y_test, predicted_close, time_data):
     actual_close = time_data.loc[y_test.index, 'Close']
@@ -159,8 +164,112 @@ def plot_predictions(y_test, predicted_close, time_data):
 def run_test(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_free_rate=0, lag_time='week'):
     data = get_metrics(ticker, start_check = start_check, end_check=end_check, risk_free_rate = risk_free_rate)
     X_all, y_all, time_data = create_params(data, lag_time=lag_time)
-    model, y_test, predicted_close = prediction(X_all, y_all, time_data)
+    model, y_test, predicted_close, offset, preprocessor = prediction(X_all, y_all, time_data)
     plot_predictions(y_test, predicted_close, time_data)
 
 
-run_test('MSFT')
+def get_current_metrics(ticker, risk_free_rate = 0):
+    today = datetime.today()
+    one_month_ago = today - timedelta(days=60)
+    data = yf.download(ticker, start=one_month_ago.strftime('%Y-%m-%d'), end=today.strftime('%Y-%m-%d'), progress=False)
+
+    data.columns = data.columns.get_level_values(0)
+    data.columns.name = None
+    data = data.reset_index()
+    data['garman_klass_vol'] = (((np.log(data['High']) - np.log(data['Low']))**2)/2) - ((2*np.log(2)-1)*(np.log(data['Close'])-np.log(data['Open']))**2)
+    data['rsi'] = pandas_ta.rsi(close=data['Close'], length=14)
+
+    bands = pandas_ta.bbands(close=(data['Close']), length=20)
+    data['bb_low'] = bands['BBL_20_2.0']
+    data['bb_mid'] = bands['BBM_20_2.0']
+    data['bb_high'] = bands['BBU_20_2.0']
+
+    atr = pandas_ta.atr(high=data['High'], low=data['Low'], close=data['Close'], length=14)
+    data['atr'] = (atr - atr.mean()) / atr.std()
+
+    macd = pandas_ta.macd(close=data['Close'], fast=12, slow=26, signal=9)['MACD_12_26_9']
+    data['macd'] = (macd - macd.mean()) / macd.std()
+
+    data['dollar_volume'] = (data['Close']*data['Volume'])/1e6
+
+    spy = yf.download('SPY', start='2015-01-01', end='2025-06-01')
+    spy.columns = spy.columns.get_level_values(0)
+    spy.columns.name = None
+
+    spy = spy.reset_index()
+    data['returns'] = data['Close'].pct_change()
+    spy['returns'] = spy['Close'].pct_change()
+    data['market returns'] = spy['returns']
+
+    window = 30
+    beta_values = [np.nan] * (window - 1)
+
+    returns = pd.DataFrame({
+        'stock': data['returns'],
+        'market': spy['returns']
+    }).dropna()
+
+    for i in range(window - 1, len(returns)):
+        window_data = returns.iloc[i - window + 1 : i + 1]
+        cov = np.cov(window_data['stock'], window_data['market'])[0, 1]
+        var = np.var(window_data['market'])
+        beta = cov / var if var != 0 else np.nan
+        beta_values.append(beta)
+
+    beta_series = pd.Series(beta_values, index=returns.index)
+    data.loc[beta_series.index, 'beta'] = beta_series
+
+    data = data.bfill()
+    data['alpha'] = data['returns'] - data['beta'] * data['market returns']
+    rolling_mean = data['returns'].rolling(window).mean() - risk_free_rate
+    rolling_std = data['returns'].rolling(window).std()
+    data['rolling_sharpe'] = rolling_mean / rolling_std
+
+
+    def downside_std(returns):
+        negative_returns = returns[returns < 0]
+        return negative_returns.std()
+
+    data['downside_std'] = data['returns'].rolling(window).apply(downside_std, raw=False)
+    data['rolling_sortino'] = rolling_mean / data['downside_std']
+
+    data['rolling_volatility'] = data['returns'].rolling(window).std()
+
+    data['momentum_20'] = data['Close'] / data['Close'].shift(20) - 1
+
+    data['excess_return'] = data['returns'] - data['market returns']
+
+    data['adx'] = pandas_ta.adx(high=data['High'], low=data['Low'], close=data['Close'], length=14)['ADX_14']
+
+    data = data.drop(columns=['High', 'Low', 'Open', 'Volume','dollar_volume'])
+    data = data.fillna(method='bfill')
+
+    data['returns_7d_mean'] = data['returns'].rolling(window=7).mean().bfill()
+    data['volatility_7d'] = data['returns'].rolling(window=7).std().bfill()
+    data = data.drop(columns=['Date'])
+
+    print(data.iloc[[-1]])
+
+    return data.iloc[[-1]]
+
+def next_prediction(X_new, model, offset, preprocessor):
+    X_new_preprocessed = preprocessor.transform(X_new)
+    predicted_change = model.predict(X_new_preprocessed)[0]
+    pred_adjusted = predicted_change + offset
+    last_close = X_new['Close'].values[0]
+    final_guess = pred_adjusted + last_close
+    print(f'predicted_change= {predicted_change}')
+    print(f'offset {offset}')
+    print(f'predicted_adjusted= {pred_adjusted}')
+    print(f'the next expected value is {final_guess}')
+
+
+def run_predict(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_free_rate=0, lag_time='week'):
+    data = get_metrics(ticker, start_check = start_check, end_check=end_check, risk_free_rate = risk_free_rate)
+    X_all, y_all, time_data = create_params(data, lag_time=lag_time)
+    model, y_test, predicted_close, offset, preprocessor = prediction(X_all, y_all, time_data)
+    X_new = get_current_metrics(ticker)
+    next_prediction(X_new, model, offset, preprocessor)
+
+
+run_predict('AAPL')
