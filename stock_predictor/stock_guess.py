@@ -7,7 +7,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
+from sklearn.decomposition import PCA
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.cluster import KMeans
 from datetime import datetime, timedelta
 
 def get_metrics(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_free_rate=0):
@@ -274,4 +276,47 @@ def run_predict(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_
     return guess
 
 
-run_predict('TSLA')
+def cluster_volatility(tickers, start ='2025-01-01', end = '2025-06-01', n_clusters=3):
+    price_data = yf.download(tickers, start=start, end=end,auto_adjust=False, progress=False)['Close']
+    returns = price_data.pct_change().dropna()
+    features = pd.DataFrame(index=tickers)
+    features['mean_return'] = returns.mean()
+    features['volatility'] = returns.std()
+    features['sharpe'] = features['mean_return'] / features['volatility']
+
+    def max_drawdown(series):
+        cum_returns = (1 + series).cumprod()
+        peak = cum_returns.cummax()
+        drawdown = (cum_returns - peak) / peak
+        return drawdown.min()
+    
+    features['max_drawdown'] = returns.apply(max_drawdown)
+
+    features = features.dropna()
+    X = StandardScaler().fit_transform(features)
+    kmeans = KMeans(n_clusters=n_clusters,n_init=10, random_state=42)
+    features['cluster'] = kmeans.fit_predict(X)
+
+    return X, features
+
+
+def plot_clusters(X, features):
+    pca = PCA(n_components=2)
+    X_pca = pca.fit_transform(X)
+    plt.figure(figsize=(10, 7))
+    scatter = plt.scatter(X_pca[:, 0], X_pca[:, 1], c=features['cluster'], cmap='Set1', s=100, alpha=0.8)
+    for i, ticker in enumerate(features.index):
+        plt.text(X_pca[i, 0] + 0.02, X_pca[i, 1], ticker, fontsize=9)
+
+    plt.xlabel('PCA 1')
+    plt.ylabel('PCA 2')
+    plt.title('Stock Clustering by Risk/Reward Profile')
+    plt.colorbar(scatter, label='Cluster')
+    plt.grid(True)
+    plt.show()
+
+#testing clustering
+
+tickers = ['AAPL', 'KO', 'MSFT', 'AMZN', 'NVDA', 'JPM', 'GOOG',"PLTR", "NFLX", "ARKK", "SOFI", "MCD", "PG", "JNJ", "XOM", "BRK-B"]
+X, features = cluster_volatility(tickers)
+plot_clusters(X,features)
