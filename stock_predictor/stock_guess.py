@@ -12,6 +12,17 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.cluster import KMeans
 from datetime import datetime, timedelta
 
+'''
+
+Potential adds for getting info
+* aplaca api - can do news research
+* https://aletheiaapi.com/docs/ - has better historical and current data
+
+
+
+'''
+
+
 def get_metrics(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_free_rate=0):
     data = yf.download(ticker, start=start_check, end=end_check)
     data.columns = data.columns.get_level_values(0)
