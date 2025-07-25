@@ -48,11 +48,11 @@ def get_stock_sentiment(symbol, key_words, days_in_past = 1, start_day = datetim
         pred_label = labels[np.argmax(probs)]
         for j in range(3):
             score_array[j] += probs[j]
-
+    scores = np.array(score_array) / np.sum(score_array)
     print(f'{symbol}\'s overall sentiment: {labels[np.argmax(score_array)]}')
-    print(f'{symbol}\'s values sentiment(neutral, positive, negative): {score_array}')
+    print(f'{symbol}\'s values sentiment(neutral, positive, negative): {scores}')
     time.sleep(1)
-    return score_array
+    return scores
 
 def sentiment_history(ticker, start_date, end_date, key_words):
     date_range = pd.date_range(start=start_date, end=end_date)
