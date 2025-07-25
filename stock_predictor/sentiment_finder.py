@@ -1,4 +1,5 @@
 import finnhub
+import time
 from datetime import datetime, timedelta
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import torch
@@ -19,8 +20,8 @@ model = AutoModelForSequenceClassification.from_pretrained(model_name)
 
 
 def get_stock_sentiment(symbol, key_words, days_in_past = 1, start_day = datetime.today()):
-    from_date = start_day
-    to_date = start_day - timedelta(days=days_in_past)
+    to_date = start_day
+    from_date = start_day - timedelta(days=days_in_past)
     news = finnhub_client.company_news(symbol, _from=from_date.strftime('%Y-%m-%d'), to=to_date.strftime('%Y-%m-%d'))
     company_name_keywords = key_words
     filtered_news = [
@@ -33,24 +34,25 @@ def get_stock_sentiment(symbol, key_words, days_in_past = 1, start_day = datetim
     sentences = [news['summary'] for news in filtered_news]
     if not sentences:
         print(f"No news found for {symbol} on {from_date.strftime('%Y-%m-%d')}")
-        return 0
+        return [0, 0, 0]
     inputs = tokenizer(sentences, padding=True, truncation=True, return_tensors="pt")
     with torch.no_grad():
         outputs = model(**inputs)
         logits = outputs.logits
+    score_array = [0 , 0, 0]#neutral, positive, negative
 
     probabilities = torch.softmax(logits, dim=1).numpy()
     labels = ['neutral', 'positive', 'negative']
     for i, sentence in enumerate(sentences):
-        score_array = [0 , 0, 0]#neutral, positive, negative
         probs = probabilities[i]
         pred_label = labels[np.argmax(probs)]
-        for i in range(3):
-            score_array[i] += probs[i]
+        for j in range(3):
+            score_array[j] += probs[j]
 
     print(f'{symbol}\'s overall sentiment: {labels[np.argmax(score_array)]}')
-
-    return labels[np.argmax(score_array)]
+    print(f'{symbol}\'s values sentiment(neutral, positive, negative): {score_array}')
+    time.sleep(1)
+    return score_array
 
 def sentiment_history(ticker, start_date, end_date, key_words):
     date_range = pd.date_range(start=start_date, end=end_date)
