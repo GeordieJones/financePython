@@ -21,7 +21,7 @@ def plot_sentiment_v_price(tickers, date):
         keywords = [ticker, short_name]
 
         sentiment_score = (sf.get_stock_sentiment(ticker, keywords, days_in_past=1, start_day=date))
-        sentiment_score = sentiment_score[1]-sentiment_score[2]
+        sentiment_score = sentiment_score[0]-sentiment_score[1]
         sentiment.append(sentiment_score)
 
     plt.scatter(prices, sentiment)
