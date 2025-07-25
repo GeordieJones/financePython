@@ -1,5 +1,6 @@
 import finnhub
 import time
+import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import torch
@@ -87,4 +88,17 @@ def dateframe_sentiment(tickers, start_date, end_date, key_words):
     sentiment_df = sentiment_df.sort_index()
     return sentiment_df
 
-print(dateframe_sentiment(['AAPL'], minus_time, today, ['AAPL', 'Apple']))
+def plot_sentiment(sentiment_df):
+    for column in sentiment_df.columns:
+        sentiment_df[column] = sentiment_df[column].apply(lambda x: x[0] - x[1])
+    ax = sentiment_df.plot(figsize=(12, 6))
+    plt.title('Sentiment Over Time')
+    plt.xlabel('Date')
+    plt.ylabel('Sentiment Score')
+    ax.figure.autofmt_xdate()
+    plt.show()
+
+sentiment_df = dateframe_sentiment(['AAPL'], minus_time, today, ['AAPL', 'Apple'])
+sentiment_df.to_pickle('aapl_sentiment.pkl')
+plot_sentiment(sentiment_df)
+
