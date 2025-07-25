@@ -31,6 +31,9 @@ def get_stock_sentiment(symbol, key_words, days_in_past = 1, start_day = datetim
     filtered_news = filtered_news[:5]
 
     sentences = [news['summary'] for news in filtered_news]
+    if not sentences:
+        print(f"No news found for {symbol} on {from_date.strftime('%Y-%m-%d')}")
+        return 0
     inputs = tokenizer(sentences, padding=True, truncation=True, return_tensors="pt")
     with torch.no_grad():
         outputs = model(**inputs)
