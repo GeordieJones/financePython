@@ -125,17 +125,32 @@ def combine_sentiments_from_files(stock_list):
             print(f"Data for {ticker} is empty or improperly formatted.")
             continue
 
+        # Convert sentiment list [pos, neg, neu] to score
         df[ticker] = df[ticker].apply(lambda x: x[0] - x[1])
         df = df[[ticker]]
+
+        # Group by date only (drop time) and average
+        df.index = pd.to_datetime(df.index)
+        df = df.groupby(df.index.date).mean()
+
+        # Ensure the index is a proper datetime index again
+        df.index = pd.to_datetime(df.index)
         dfs.append(df)
 
     if not dfs:
         raise ValueError("No valid sentiment data found.")
 
+    # Outer join on date index
     combined_df = pd.concat(dfs, axis=1, join='outer')
     combined_df.index.name = 'date'
     combined_df = combined_df.sort_index()
+
+    print(combined_df.head())
+    print(combined_df.describe())
+    print(combined_df.isnull().sum())
+
     return combined_df
+
 
 
 def plot_combined_sentiments(combined_df):
@@ -171,3 +186,9 @@ stocks = {
 
 combined_df = combine_sentiments_from_files(stocks.keys())
 plot_combined_sentiments(combined_df)
+
+
+
+files = os.listdir()
+sentiment_files = [f for f in files if f.endswith('_sentiment.pkl')]
+print("Sentiment files found:", sentiment_files)
