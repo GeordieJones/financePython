@@ -6,7 +6,7 @@ import pandas as pd
 
 
 # could be any stocks you want to look at
-hypothetical_portfolio = ['AAPL', 'KO', 'MSFT', 'AMZN', 'NVDA', 'JPM', 'GOOG']
+hypothetical_portfolio = ['AAPL', 'KO', 'MSFT', 'AMZN', 'NVDA', 'JPM', 'GOOG',"PLTR", "NFLX", "MCD", "SPY", "JNJ", "XOM", "META"]
 
 def get_predictions(portfolio, lag_time = 'week'):
     next_week_prices = {}

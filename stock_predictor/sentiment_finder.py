@@ -1,5 +1,6 @@
 import finnhub
 import time
+import yfinance as yf
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -184,8 +185,8 @@ stocks = {
 }
 
 
-combined_df = combine_sentiments_from_files(stocks.keys())
-plot_combined_sentiments(combined_df)
+'''combined_df = combine_sentiments_from_files(stocks.keys())
+plot_combined_sentiments(combined_df)'''
 
 
 

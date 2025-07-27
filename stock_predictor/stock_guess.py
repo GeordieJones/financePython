@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 import pandas_ta
+import sentiment_finder as sf
+import os
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import train_test_split
@@ -11,6 +13,8 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.cluster import KMeans
 from datetime import datetime, timedelta
+today = datetime.today()
+minus_time = today - timedelta(days=180)
 
 '''
 
@@ -22,12 +26,50 @@ Potential adds for getting info
 
 '''
 
+def get_sentiment_data(sentiment_dir="sentiment_data"):
+    files = os.listdir(sentiment_dir)
+    sentiment_files = [f for f in files if f.endswith('_sentiment.pkl')]
+    print("Sentiment files found:", sentiment_files)
+
+    dfs = []
+
+    for file in sentiment_files:
+        ticker = file.split('_')[0]
+        filepath = os.path.join(sentiment_dir, file)
+        df = pd.read_pickle(filepath)
+
+        if 'date' in df.columns:
+            df = df.set_index('date')
+
+        df.index = pd.to_datetime(df.index)
+        u_ticker = ticker.upper()
+        # Unpack list column into 3 columns
+        if u_ticker in df.columns:
+            sentiment_lists = df[u_ticker].tolist()
+            unpacked = pd.DataFrame(sentiment_lists, columns=[f"{u_ticker}_pos", f"{ticker}_neu", f"{ticker}_neg"], index=df.index)
+            unpacked.index.name = 'date'
+            unpacked = unpacked.groupby(pd.Grouper(freq='D')).mean()
+            dfs.append(unpacked)
+        else:
+            print(f"Ticker {ticker} not found in columns: {df.columns}")
+
+    return dfs
+
+
+def load_and_process_sentiment(ticker):
+    dfs = get_sentiment_data()
+    for df in dfs:
+        cols = [col for col in df.columns if col.startswith(ticker)]
+        if cols:
+            return df[cols]
+    raise ValueError(f"No sentiment data found for ticker: {ticker}")
 
 def get_metrics(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_free_rate=0):
     data = yf.download(ticker, start=start_check, end=end_check)
     data.columns = data.columns.get_level_values(0)
     data.columns.name = None
     data = data.reset_index()
+
     data['garman_klass_vol'] = (((np.log(data['High']) - np.log(data['Low']))**2)/2) - ((2*np.log(2)-1)*(np.log(data['Close'])-np.log(data['Open']))**2)
     data['rsi'] = pandas_ta.rsi(close=data['Close'], length=14)
 
@@ -35,6 +77,15 @@ def get_metrics(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_
     data['bb_low'] = bands['BBL_20_2.0']
     data['bb_mid'] = bands['BBM_20_2.0']
     data['bb_high'] = bands['BBU_20_2.0']
+    data = data.bfill()
+
+    try:
+        sentiment_df = load_and_process_sentiment(ticker)
+    except FileNotFoundError as e:
+        print(e)
+    data = data.merge(sentiment_df, left_on='Date', right_index=True, how='left')
+    data = data.sort_values('Date')
+    data = data.ffill()
 
     atr = pandas_ta.atr(high=data['High'], low=data['Low'], close=data['Close'], length=14)
     data['atr'] = (atr - atr.mean()) / atr.std()
@@ -174,7 +225,7 @@ def plot_predictions(y_test, predicted_close, time_data):
 
 
 
-def run_test(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_free_rate=0, lag_time='week'):
+def run_test(ticker, start_check = minus_time,end_check=today, risk_free_rate=0, lag_time='week'):
     data = get_metrics(ticker, start_check = start_check, end_check=end_check, risk_free_rate = risk_free_rate)
     X_all, y_all, time_data = create_params(data, lag_time=lag_time)
     model, y_test, predicted_close, offset, preprocessor = prediction(X_all, y_all, time_data)
@@ -278,7 +329,7 @@ def next_prediction(X_new, model, offset, preprocessor):
     return final_guess
 
 
-def run_predict(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_free_rate=0, lag_time='week'):
+def run_predict(ticker, start_check = minus_time,end_check=today, risk_free_rate=0, lag_time='week'):
     data = get_metrics(ticker, start_check = start_check, end_check=end_check, risk_free_rate = risk_free_rate)
     X_all, y_all, time_data = create_params(data, lag_time=lag_time)
     model, y_test, predicted_close, offset, preprocessor = prediction(X_all, y_all, time_data)
@@ -327,7 +378,11 @@ def plot_clusters(X, features):
     plt.show()
 
 #testing clustering
-
-tickers = ['AAPL', 'KO', 'MSFT', 'AMZN', 'NVDA', 'JPM', 'GOOG',"PLTR", "NFLX", "ARKK", "SOFI", "MCD", "PG", "JNJ", "XOM", "BRK-B"]
+'''
+tickers = ['AAPL', 'KO', 'MSFT', 'AMZN', 'NVDA', 'JPM', 'GOOG',"PLTR", "NFLX", "MCD", "SPY", "JNJ", "XOM", "META"]
 X, features = cluster_volatility(tickers)
-plot_clusters(X,features)
+plot_clusters(X,features)'''
+
+appl = load_and_process_sentiment('AAPL')
+
+print(appl.head())
