@@ -186,10 +186,12 @@ stocks = {
 
 
 '''combined_df = combine_sentiments_from_files(stocks.keys())
-plot_combined_sentiments(combined_df)'''
+plot_combined_sentiments(combined_df)
 
 
 
 files = os.listdir()
 sentiment_files = [f for f in files if f.endswith('_sentiment.pkl')]
-print("Sentiment files found:", sentiment_files)
+print("Sentiment files found:", sentiment_files)'''
+ticker = 'AAPL'
+print(get_stock_sentiment(ticker,f'{ticker}'))

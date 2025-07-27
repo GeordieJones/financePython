@@ -252,6 +252,9 @@ def get_current_metrics(ticker, risk_free_rate = 0):
     data['bb_mid'] = bands['BBM_20_2.0']
     data['bb_high'] = bands['BBU_20_2.0']
 
+
+    data[f'{ticker}_sentiment'] = sf.get_stock_sentiment(ticker,f'{ticker}')
+
     atr = pandas_ta.atr(high=data['High'], low=data['Low'], close=data['Close'], length=14)
     data['atr'] = (atr - atr.mean()) / atr.std()
 
@@ -387,5 +390,5 @@ tickers = ['AAPL', 'KO', 'MSFT', 'AMZN', 'NVDA', 'JPM', 'GOOG',"PLTR", "NFLX", "
 X, features = cluster_volatility(tickers)
 plot_clusters(X,features)'''
 
-df = run_test('MSFT')
+df = run_predict('MSFT')
 print(f'The next expected value for MSFT is {df}')
