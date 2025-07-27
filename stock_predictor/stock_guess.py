@@ -29,7 +29,7 @@ Potential adds for getting info
 def get_sentiment_data(sentiment_dir="sentiment_data"):
     files = os.listdir(sentiment_dir)
     sentiment_files = [f for f in files if f.endswith('_sentiment.pkl')]
-    print("Sentiment files found:", sentiment_files)
+    #print("Sentiment files found:", sentiment_files)
 
     dfs = []
 
@@ -46,7 +46,8 @@ def get_sentiment_data(sentiment_dir="sentiment_data"):
         # Unpack list column into 3 columns
         if u_ticker in df.columns:
             sentiment_lists = df[u_ticker].tolist()
-            unpacked = pd.DataFrame(sentiment_lists, columns=[f"{u_ticker}_pos", f"{ticker}_neu", f"{ticker}_neg"], index=df.index)
+            sentiment_scores = [x[0] - x[1] for x in sentiment_lists]
+            unpacked = pd.DataFrame(sentiment_scores, columns=[f'{u_ticker}_sentiment'], index=df.index)
             unpacked.index.name = 'date'
             unpacked = unpacked.groupby(pd.Grouper(freq='D')).mean()
             dfs.append(unpacked)
@@ -81,11 +82,13 @@ def get_metrics(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_
 
     try:
         sentiment_df = load_and_process_sentiment(ticker)
+        sentiment_df.index = pd.to_datetime(sentiment_df.index).normalize()
+        data['Date'] = pd.to_datetime(data['Date']).dt.normalize()
+        data = data.merge(sentiment_df, left_on='Date', right_index=True, how='left')
+        data = data.sort_values('Date')
+        data = data.ffill()
     except FileNotFoundError as e:
         print(e)
-    data = data.merge(sentiment_df, left_on='Date', right_index=True, how='left')
-    data = data.sort_values('Date')
-    data = data.ffill()
 
     atr = pandas_ta.atr(high=data['High'], low=data['Low'], close=data['Close'], length=14)
     data['atr'] = (atr - atr.mean()) / atr.std()
@@ -145,7 +148,8 @@ def get_metrics(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_
     data['adx'] = pandas_ta.adx(high=data['High'], low=data['Low'], close=data['Close'], length=14)['ADX_14']
 
     data = data.drop(columns=['High', 'Low', 'Open', 'Volume','dollar_volume'])
-    data = data.fillna(method='bfill')
+    data = data.bfill()
+
 
     data['returns_7d_mean'] = data['returns'].rolling(window=7).mean().bfill()
     data['volatility_7d'] = data['returns'].rolling(window=7).std().bfill()
@@ -329,7 +333,7 @@ def next_prediction(X_new, model, offset, preprocessor):
     return final_guess
 
 
-def run_predict(ticker, start_check = minus_time,end_check=today, risk_free_rate=0, lag_time='week'):
+def run_predict(ticker, start_check = minus_time,end_check=today, risk_free_rate=0, lag_time='day'):
     data = get_metrics(ticker, start_check = start_check, end_check=end_check, risk_free_rate = risk_free_rate)
     X_all, y_all, time_data = create_params(data, lag_time=lag_time)
     model, y_test, predicted_close, offset, preprocessor = prediction(X_all, y_all, time_data)
@@ -383,6 +387,5 @@ tickers = ['AAPL', 'KO', 'MSFT', 'AMZN', 'NVDA', 'JPM', 'GOOG',"PLTR", "NFLX", "
 X, features = cluster_volatility(tickers)
 plot_clusters(X,features)'''
 
-appl = load_and_process_sentiment('AAPL')
-
-print(appl.head())
+df = run_test('MSFT')
+print(f'The next expected value for MSFT is {df}')
