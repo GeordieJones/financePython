@@ -10,7 +10,7 @@ vols['volatility'] = pd.to_numeric(vols['volatility'], errors='coerce')
 acceptable_vols = []
 
 # Thresholds
-min_vol = 0.01
+min_vol = 0.005
 max_vol_above_mean = 0.04
 mean_vol = vols['volatility'].mean()
 max_vol = mean_vol + max_vol_above_mean
@@ -33,6 +33,31 @@ print (f"Number of acceptable tickers: {len(acceptable_vols)}")
 result_df = pd.DataFrame(acceptable_vols, columns=['symbol', 'volatility'])
 result_df.to_csv('acceptable_volatilities.csv', index=False)
 '''
+
+def filter_out():
+    df = pd.read_csv('acceptable_volatilities.csv')
+    comp = pd.read_csv('avalible_tickers.csv')
+
+    comp_stocks = comp[comp['assetType'] == 'Stock']
+    comp_stocks = comp_stocks['symbol'].tolist()
+
+    corrected_acceptable = []
+    for idx, row in df.iterrows():
+        symbol = row['symbol']
+        if symbol in comp_stocks:
+            corrected_acceptable.append([symbol, row['volatility']])
+        else:
+            print(f"Symbol {symbol} not found in available tickers, skipping.")
+    print(f"Number of filtered tickers: {len(corrected_acceptable)}")
+    result_df = pd.DataFrame(corrected_acceptable, columns=['symbol', 'volatility'])
+    result_df.to_csv('acceptable_volatilities.csv', index=False)
+
+
+
+filter_out()
+
+
+
 def get_1y_return(symbol):
         data = yf.download(symbol, period="1y", interval="1d", progress=False, auto_adjust=True)
         if data.empty or 'Close' not in data.columns:
@@ -105,4 +130,4 @@ def make_volume_list():
     volume_df.to_csv('top_1000_stocks.csv', index=False)
 
 
-make_volume_list()
+#make_volume_list()
