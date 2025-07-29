@@ -3,39 +3,65 @@ import pandas as pd
 from tqdm import tqdm
 import yfinance as yf
 import time
-from numbers import Number
+
 
 
 tickers_from_file = pd.read_csv('top_1000_stocks.csv')
 tickers = tickers_from_file['symbol'].tolist()
 
-financials = []
-index_labels = []
+financials_yearly = {i: [] for i in range(5)}
+tickers_yearly = {i: [] for i in range(5)}
 
-for ticker in tqdm(tickers):
+
+for ticker in tqdm(tickers,desc = f"Processing tickers"):
     try:
         fin_df = yf.Ticker(ticker).financials
         if fin_df.empty:
             continue
-        
-        # Transpose and grab the latest row (first one is most recent)
-        latest = fin_df.T.iloc[0]
-        latest.name = ticker  # Set ticker as index
-        financials.append(latest)
-        index_labels.append(ticker)
+
+        fin_df = fin_df.T.sort_index(ascending=False)
+            
+            # Transpose and grab the latest row (first one is most recent)
+        for year_i in range(5):
+            if len(fin_df) > year_i:
+                row = fin_df.iloc[year_i]
+                row.name = ticker
+                financials_yearly[year_i].append(row)
+                tickers_yearly[year_i].append(ticker)
     except Exception as e:
         print(f"Error processing {ticker}: {e}")
     time.sleep(0.1)
 
-# Combine into a DataFrame with tickers as rows
-financials_df = pd.DataFrame(financials, index=index_labels)
+columns_to_drop = [
+    'Tax Effect Of Unusual Items', 'Total Unusual Items Excluding Goodwill',
+    'Net Income From Continuing Operation Net Minority Interest',
+    'Reconciled Depreciation', 'Reconciled Cost Of Revenue',
+    'Net Interest Income', 'Net Income From Continuing And Discontinued Operation',
+    'Diluted Average Shares', 'Basic Average Shares',
+    'Basic EPS', 'Diluted NI Availto Com Stockholders',
+    'Net Income Common Stockholders', 'Net Income Including Noncontrolling Interests',
+    'Net Income Continuous Operations', 'Other Non Operating Income Expenses',
+    'Special Income Charges', 'Net Non Operating Interest Income Expense',
+    'Interest Expense Non Operating', 'Interest Income Non Operating',
+    'Operating Revenue', 'General And Administrative Expense', 'Other Gand A'
+]
 
-# Drop rows and columns that are all NaNs
-financials_df.dropna(axis=0, how='all', inplace=True)  # Drop tickers with no valid data
-financials_df.dropna(axis=1, how='all', inplace=True)  # Drop metrics that are empty for all tickers
-
-# Sort by ticker symbol
-financials_df.sort_index(inplace=True)
-
-# Save cleaned data
-financials_df.to_pickle('latest_data.pkl')
+threshold = 0.5
+for year_i in range(5):
+    df = pd.DataFrame(financials_yearly[year_i], index=tickers_yearly[year_i])
+    
+    # Drop rows and columns with all NaNs
+    df.dropna(axis=0, how='all', inplace=True)
+    df.dropna(axis=1, how='all', inplace=True)
+    
+    # Drop columns with too many NaNs
+    min_non_na = int(threshold * len(df))
+    df = df.dropna(axis=1, thresh=min_non_na)
+    
+    # Drop manually curated redundant columns if present
+    cols_to_drop = [c for c in columns_to_drop if c in df.columns]
+    df.drop(columns=cols_to_drop, inplace=True)
+    
+    df.sort_index(inplace=True)
+    
+    df.to_pickle(f'year{year_i}_data.pkl')
