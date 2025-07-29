@@ -72,12 +72,17 @@ def plot_predictions(y_test, predicted_close):
 
     print("MSE:", mse)
     print("R2:", r2)
-    plt.figure(figsize=(10,6))
-    plt.plot(actual_close, label='Actual Price', alpha=0.7)
-    plt.plot(predicted_series, label='Predicted Price', alpha=0.7)
-    plt.title('Gradient Boosting: Actual vs Predicted Price')
-    plt.xlabel('Date')
+    
+    actual = y_test.reset_index(drop=True)
+    predicted = pd.Series(predicted_close).reset_index(drop=True)
+    stocks = np.arange(len(actual))  # just indices for stocks
+
+    plt.figure(figsize=(12,6))
+    plt.plot(stocks, actual, 'o-', label='Actual Price', alpha=0.7)
+    plt.plot(stocks, predicted, 'x-', label='Predicted Price', alpha=0.7)
+    plt.xlabel('Stock Number (sorted by actual price)')
     plt.ylabel('Price')
+    plt.title('Predicted vs Actual Stock Prices (per stock index)')
     plt.legend()
     plt.show()
 
