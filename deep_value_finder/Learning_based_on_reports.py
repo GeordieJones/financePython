@@ -85,7 +85,8 @@ def prediction(X_all, y_all):
 
 def plot_predictions(y_test, predicted_close):
     actual_close = y_test.copy()
-    predicted_series = pd.Series(predicted_close, index=y_test.index)
+    predicted_series = pd.Series(predicted_close).reset_index(drop=True)
+    actual_close = y_test.reset_index(drop=True)
     mse = mean_squared_error(actual_close, predicted_series)
     r2 = r2_score(actual_close, predicted_series)
 
@@ -105,7 +106,7 @@ def plot_predictions(y_test, predicted_close):
     plt.legend()
     plt.show()
 
-def run_predictions():
+def run_learning():
     df = pd.read_pickle('combined_data.pkl')
     X_all, y_all = preprocess_data(df)
     y_pred_adjusted, y_test, model, X_test, preprocessor = prediction(X_all, y_all)
@@ -117,5 +118,11 @@ def save_model(model, preprocessor, model_path='best_model.joblib', preproc_path
     joblib.dump(preprocessor, preproc_path)
     print("Model and preprocessor saved!")
 
+def load_model(model_path='best_model.joblib', preproc_path='preprocessor.joblib'):
+    model = joblib.load(model_path)
+    preprocessor = joblib.load(preproc_path)
+    print("Model and preprocessor loaded!")
+    return model, preprocessor
+
 if __name__ == "__main__":
-    run_predictions()
+    load_model()
