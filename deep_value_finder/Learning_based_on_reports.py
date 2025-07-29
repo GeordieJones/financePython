@@ -9,6 +9,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.decomposition import PCA
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.cluster import KMeans
+from sklearn.model_selection import GridSearchCV, KFold
 from datetime import datetime, timedelta
 
 def all_data_in_one():
@@ -45,24 +46,44 @@ def prediction(X_all, y_all):
         ]
     )
 
+    y_all_transformed = np.log1p(y_all)
+
     X_preprocessed = preprocessor.fit_transform(X_all)
-    X_train, X_test, y_train, y_test = train_test_split(X_preprocessed, y_all, test_size=0.2, random_state=42, shuffle=True)
+    X_train, X_test, y_train_transformed, y_test_transformed = train_test_split(X_preprocessed, y_all_transformed, test_size=0.15, random_state=42, shuffle=True)
 
-    model = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
+    model = GradientBoostingRegressor(random_state=42)
 
-    y_pred = np.array(y_pred)
-    np_y_test = np.array(y_test)
+    param_grid = {
+        'n_estimators': [300, 400],
+        'max_depth': [7, 9],
+        'learning_rate': [0.03,0.05],
+        'min_samples_split': [2],
+        'min_samples_leaf': [1,3],
+        'subsample': [0.6,0.8,1.0],
+        'max_features': ['sqrt', 'log2']
+    }
+
+    cv_splitter = KFold(n_splits=10, shuffle=True, random_state=42)
+
+    grid = GridSearchCV(model, param_grid, cv= cv_splitter, scoring='neg_mean_squared_error', n_jobs=-1)
+    grid.fit(X_train, y_train_transformed)
+    
+    best_model = grid.best_estimator_
+    y_pred_transformed = best_model.predict(X_test)
+    y_pred = np.expm1(y_pred_transformed)
+    y_test = np.expm1(y_test_transformed)
+    
     offset = np.mean(y_test - y_pred)
     y_pred_adjusted = y_pred + offset
-
+    
     mse = mean_squared_error(y_test, y_pred_adjusted)
     r2 = r2_score(y_test, y_pred_adjusted)
-
-    print(f'\n\n mse: {mse}\nr2: {r2}\n\n')
-
-    return y_pred_adjusted, y_test, model, X_test, preprocessor
+    
+    print(f"Best params: {grid.best_params_}")
+    print(f"MSE: {mse}")
+    print(f"R2: {r2}")
+    
+    return y_pred_adjusted, y_test, best_model, X_test, preprocessor
 
 def plot_predictions(y_test, predicted_close):
     actual_close = y_test.copy()
