@@ -54,80 +54,57 @@ def filter_out():
 
 
 
-filter_out()
-
-
-
-def get_1y_return(symbol):
-        data = yf.download(symbol, period="1y", interval="1d", progress=False, auto_adjust=True)
-        if data.empty or 'Close' not in data.columns:
-            print(f"No data for {symbol}, returning none.")
-            return None
-        close_prices = data['Close']
-        if isinstance(close_prices, pd.DataFrame):
-            close_prices = close_prices.iloc[:, 0]
-
-        start_price = close_prices.iloc[0]
-        end_price = close_prices.iloc[-1]
-        return_pct = (end_price - start_price) / start_price
-        return return_pct
-
-
-
-def Y_1_filter():
-    stocks = pd.read_csv('acceptable_volatilities.csv')
+def filter_and_rank_stocks():
+    tickers_df = pd.read_csv('acceptable_volatilities.csv')
     min_ret = -0.3
     max_ret = 1.5
-    acceptable_stocks = []
+    results = []
 
-    
-    for idx, row in stocks.iterrows():
-        symbol = row['symbol']
-        return_1y = get_1y_return(symbol)
-
-        if return_1y is None:
-            print(f"No 1 year return data for {symbol}, skipping.")
-            continue
-
-        if return_1y < min_ret:
-            print(f"Too low return found: {symbol} with return of {return_1y:.2f}")
-        elif return_1y > max_ret:
-            print(f"Too high return found: {symbol} with return of {return_1y:.2f}")
-        else:
-            acceptable_stocks.append([symbol, return_1y])
-            print(f"Acceptable return found: {symbol} with return of {return_1y:.2f}")
-
-        time.sleep(0.5)
-
-    print (f"Number of acceptable tickers: {len(acceptable_stocks)}")
-    return acceptable_stocks
-
-
-def make_volume_list():
-    vol_df = pd.read_csv('final_tickers.csv')
-    volumes = []
-
-    for idx, row in vol_df.iterrows():
+    for idx, row in tickers_df.iterrows():
         symbol = row['symbol']
         try:
-            data = yf.download(symbol, period="10d", interval="1d", progress=False, auto_adjust=True)
-            if data.empty or 'Volume' not in data.columns:
+            data = yf.download(symbol, period="1y", interval="1d", progress=False, auto_adjust=True)
+            if data.empty or 'Close' not in data.columns or 'Volume' not in data.columns:
                 print(f"No data for {symbol}, skipping.")
                 continue
-            volume = data['Volume']
+
+            # --- Calculate 1-Year Return ---
+            close_prices = data['Close']
+            if isinstance(close_prices, pd.DataFrame):
+                close_prices = close_prices.iloc[:, 0]
+
+            start_price = close_prices.iloc[0]
+            end_price = close_prices.iloc[-1]
+            return_1y = (end_price - start_price) / start_price
+
+            if return_1y < min_ret:
+                print(f"Too low return found: {symbol} with return of {return_1y:.2f}")
+                continue
+            elif return_1y > max_ret:
+                print(f"Too high return found: {symbol} with return of {return_1y:.2f}")
+                continue
+
+            # --- Calculate 10-Day Average Volume ---
+            recent_data = data.tail(10)
+            volume = recent_data['Volume']
             if isinstance(volume, pd.DataFrame):
                 volume = volume.iloc[:, 0]
-            volume = volume.mean()
-            volumes.append([symbol, volume])
-            print(f"Processed {symbol}: Average Volume = {volume:.2f}")
+            average_volume = volume.mean()
+
+            results.append([symbol, return_1y, average_volume])
+            print(f"Accepted {symbol}: Return = {return_1y:.2f}, Avg Volume = {average_volume:.2f}")
+
         except Exception as e:
             print(f"Error processing {symbol}: {e}")
             continue
-    
-    volume_df = pd.DataFrame(volumes, columns=['symbol', 'average_volume'])
-    volume_df = volume_df.sort_values(by='average_volume', ascending=False)
-    volume_df = volume_df.head(1000)
-    volume_df.to_csv('top_1000_stocks.csv', index=False)
+
+        time.sleep(0.1)  # optional to avoid rate limits
+
+    df = pd.DataFrame(results, columns=['symbol', '1y_return', 'average_volume'])
+    df = df.sort_values(by='average_volume', ascending=False).head(1000)
+    df.to_csv('top_1000_stocks.csv', index=False)
+    print(f"Saved top {len(df)} stocks to top_1000_stocks.csv")
+    return df
 
 
-#make_volume_list()
+filter_and_rank_stocks()
