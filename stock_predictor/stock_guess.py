@@ -84,7 +84,7 @@ def get_metrics(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_
     data['bb_high'] = bands['BBU_20_2.0']
     data = data.bfill()
 
-    try:
+    '''try:
         sentiment_df = load_and_process_sentiment(ticker)
         sentiment_df.index = pd.to_datetime(sentiment_df.index).normalize()
         data['Date'] = pd.to_datetime(data['Date']).dt.normalize()
@@ -92,7 +92,7 @@ def get_metrics(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_
         data = data.sort_values('Date')
         data = data.ffill()
     except FileNotFoundError as e:
-        print(e)
+        print(e)'''
 
     atr = pandas_ta.atr(high=data['High'], low=data['Low'], close=data['Close'], length=14)
     data['atr'] = (atr - atr.mean()) / atr.std()
@@ -289,12 +289,12 @@ def find_best_model_prediction(X_all, y_all, time_data):
             {
                 'n_estimators': [100, 200],
                 'max_depth': [3, 5],
-                'learning_rate': [0.01, 0.1, 0.001],
+                'learning_rate': [0.01, 0.001],
                 'subsample': [0.6, 0.8],
-                'reg_alpha': [0, 0.1, 1],
-                'min_child_weight': [1, 3, 5],
-                'gamma': [0, 0.1, 0.3],
-                'colsample_bytree': [0.8, 1.0]
+                'reg_alpha': [0, 0.1],
+                'min_child_weight': [3, 5],
+                'gamma': [0.1, 0.3],
+                'colsample_bytree': [0.8]
             }
         )
     }
@@ -378,7 +378,15 @@ def get_current_metrics(ticker, risk_free_rate = 0):
     data['bb_high'] = bands['BBU_20_2.0']
 
 
-    data[f'{ticker}_sentiment'] = sf.get_stock_sentiment(ticker,f'{ticker}')
+    '''try:
+        sentiment_df = load_and_process_sentiment(ticker)
+        sentiment_df.index = pd.to_datetime(sentiment_df.index).normalize()
+        data['Date'] = pd.to_datetime(data['Date']).dt.normalize()
+        data = data.merge(sentiment_df, left_on='Date', right_index=True, how='left')
+        data = data.sort_values('Date')
+        data = data.ffill()
+    except FileNotFoundError as e:
+        print(e)'''
 
     atr = pandas_ta.atr(high=data['High'], low=data['Low'], close=data['Close'], length=14)
     data['atr'] = (atr - atr.mean()) / atr.std()
@@ -448,25 +456,23 @@ def get_current_metrics(ticker, risk_free_rate = 0):
 
     return data.iloc[[-1]]
 
-def next_prediction(X_new, model, offset, preprocessor):
+def next_prediction(X_new, model, preprocessor):
     X_new_preprocessed = preprocessor.transform(X_new)
     predicted_change = model.predict(X_new_preprocessed)[0]
-    pred_adjusted = predicted_change + offset
+    pred_adjusted = predicted_change
     last_close = X_new['Close'].values[0]
     final_guess = pred_adjusted + last_close
-    print(f'predicted_change= {predicted_change}')
-    print(f'offset {offset}')
     print(f'predicted_adjusted= {pred_adjusted}')
     print(f'the next expected value is {final_guess}')
     return final_guess
 
 
-def run_predict(ticker, start_check = minus_time,end_check=today, risk_free_rate=0, lag_time='day'):
+def run_predict(ticker, start_check = minus_time,end_check=today, risk_free_rate=0, lag_time='week'):
     data = get_metrics(ticker, start_check = start_check, end_check=end_check, risk_free_rate = risk_free_rate)
     X_all, y_all, time_data = create_params(data, lag_time=lag_time)
-    model, y_test, predicted_close, offset, preprocessor = prediction(X_all, y_all, time_data)
+    model, y_test, predicted_close, preprocessor = find_best_model_prediction(X_all, y_all, time_data)
     X_new = get_current_metrics(ticker)
-    guess = next_prediction(X_new, model, offset, preprocessor)
+    guess = next_prediction(X_new, model, preprocessor)
     return guess
 
 
@@ -513,6 +519,20 @@ def plot_clusters(X, features):
 '''
 tickers = ['AAPL', 'KO', 'MSFT', 'AMZN', 'NVDA', 'JPM', 'GOOG',"PLTR", "NFLX", "MCD", "SPY", "JNJ", "XOM", "META"]
 X, features = cluster_volatility(tickers)
-plot_clusters(X,features)'''
-
 df = run_test('AAPL', start_check='2018-01-01', end_check='2025-06-01', risk_free_rate=0.02, lag_time='week')
+plot_clusters(X,features)'''
+tickers = ['AAPL', 'KO', 'MSFT', 'AMZN', 'NVDA', 'JPM', 'GOOG',"PLTR", "NFLX", "MCD", "SPY", "JNJ", "XOM", "META"]
+def get_future_prices(tickers):
+    predicted_prices = []
+    for ticker in tickers:
+        guess = run_predict(ticker, start_check='2020-01-01',end_check='2025-07-29', risk_free_rate=0.02, lag_time='week')
+        print(f'{ticker}: {guess}')
+        ticker_prices = {ticker : guess}
+        predicted_prices.append(ticker_prices)
+    
+    return predicted_prices
+
+guess = run_predict('RKLB', start_check='2020-01-01',end_check='2025-07-29', risk_free_rate=0.02, lag_time='week')
+print(f'RKLB: {guess}')
+
+
