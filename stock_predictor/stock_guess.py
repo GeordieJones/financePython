@@ -231,6 +231,109 @@ def prediction(X_all, y_all, time_data):
 
     return model, y_test, predicted_close, preprocessor#, offset
 
+
+def find_best_model_prediction(X_all, y_all, time_data):
+    numeric_features = X_all.columns.tolist()
+    preprocessor = ColumnTransformer(
+        transformers=[('num', StandardScaler(), numeric_features)]
+    )
+
+    models = {
+        "GradientBoostingRegressor": (
+            GradientBoostingRegressor(random_state=42),
+            {
+                'n_estimators': [300,200],
+                'max_depth': [5, 7],
+                'learning_rate': [0.01, 0.005],
+                'min_samples_split': [2, 5],
+                'min_samples_leaf': [1,3],
+                'subsample': [0.6,0.8],
+                'max_features': ['sqrt', 0.8, 'log2']
+            }
+        ),
+
+
+        "HistGradientBoosting": (
+            HistGradientBoostingRegressor(random_state=42),
+            {
+                'max_iter': [300, 200],
+                'max_depth': [5, 7],
+                'learning_rate': [0.01, 0.005],
+                'min_samples_leaf': [5,20, 30],
+                'l2_regularization': [0.0, 0.1]
+            }
+        ),
+        "RandomForest": (
+            RandomForestRegressor(random_state=42),
+            {
+                'n_estimators': [200, 300],
+                'max_depth': [5, 10],
+                'min_samples_split': [2, 5],
+                'min_samples_leaf': [1, 3],
+                'max_features': ['sqrt', 'log2']
+            }
+        ),
+        "MLPRegressor": (
+            MLPRegressor(random_state=42, max_iter=5000),
+            {
+                'hidden_layer_sizes': [(50, 50),(50,), (100,), (100, 50)],
+                'activation': ['relu', 'tanh'],
+                'learning_rate_init': [0.001, 0.005, 0.01],
+                'learning_rate': ['constant', 'adaptive'],
+                'solver': ['adam'],
+                'alpha': [0.0001, 0.001, 0.01]
+            }
+        ),
+        "XGBoost": (
+            XGBRegressor(random_state=42, verbosity=0),
+            {
+                'n_estimators': [100, 200],
+                'max_depth': [3, 5],
+                'learning_rate': [0.01, 0.1, 0.001],
+                'subsample': [0.6, 0.8],
+                'reg_alpha': [0, 0.1, 1],
+                'min_child_weight': [1, 3, 5],
+                'gamma': [0, 0.1, 0.3],
+                'colsample_bytree': [0.8, 1.0]
+            }
+        )
+    }
+
+    X_preprocessed = preprocessor.fit_transform(X_all)
+    X_train, X_test, y_train, y_test = train_test_split(X_preprocessed, y_all, test_size=0.15, random_state=42, shuffle=False)
+
+    best_overall = None
+    best_score = float('inf')
+    best_model_name = None
+
+    for name, (model, param_grid) in models.items():
+        print(f"\nTuning {name}...")
+        grid = GridSearchCV(model, param_grid, cv=KFold(n_splits=5, shuffle=True, random_state=42), scoring='neg_mean_squared_error', n_jobs=-1)
+        grid.fit(X_train, y_train)
+
+        y_pred = grid.best_estimator_.predict(X_test)
+        y_pred_adjusted = y_pred  # You can add an offset correction here if needed
+
+        current_close = time_data['Close'].values[-len(y_test):]
+        predicted_close = current_close + y_pred_adjusted
+
+        mse = mean_squared_error(current_close, predicted_close)
+        r2 = r2_score(current_close, predicted_close)
+
+        print(f"{name} best params: {grid.best_params_}")
+        print(f"{name} MSE: {mse:.4f}, R2: {r2:.4f}")
+
+        if mse < best_score:
+            best_score = mse
+            best_overall = grid.best_estimator_
+            best_model_name = name
+            best_y_test = y_test
+            best_predicted_close = predicted_close
+
+    print(f"\n✅ Best model: {best_model_name} with MSE: {best_score:.4f}")
+    return best_overall, best_y_test, best_predicted_close, preprocessor
+
+
 def plot_predictions(y_test, predicted_close, time_data):
     actual_close = time_data.loc[y_test.index, 'Close']
     predicted_series = pd.Series(predicted_close, index=y_test.index)
@@ -254,7 +357,7 @@ def plot_predictions(y_test, predicted_close, time_data):
 def run_test(ticker, start_check = minus_time,end_check=today, risk_free_rate=0, lag_time='week'):
     data = get_metrics(ticker, start_check = start_check, end_check=end_check, risk_free_rate = risk_free_rate)
     X_all, y_all, time_data = create_params(data, lag_time=lag_time)
-    model, y_test, predicted_close, preprocessor = prediction(X_all, y_all, time_data)
+    model, y_test, predicted_close, preprocessor = find_best_model_prediction(X_all, y_all, time_data)
     plot_predictions(y_test, predicted_close, time_data)
 
 
