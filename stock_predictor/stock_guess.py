@@ -5,6 +5,7 @@ import yfinance as yf
 import pandas_ta
 import sentiment_finder as sf
 import os
+from sklearn.model_selection import GridSearchCV, KFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import train_test_split
@@ -13,6 +14,9 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.cluster import KMeans
 from datetime import datetime, timedelta
+from sklearn.ensemble import GradientBoostingRegressor, HistGradientBoostingRegressor, RandomForestRegressor
+from sklearn.neural_network import MLPRegressor
+from xgboost import XGBRegressor
 today = datetime.today()
 minus_time = today - timedelta(days=180)
 
@@ -186,18 +190,34 @@ def prediction(X_all, y_all, time_data):
     )
 
     X_preprocessed = preprocessor.fit_transform(X_all)
-    X_train, X_test, y_train, y_test = train_test_split(X_preprocessed, y_all, test_size=0.2, random_state=42, shuffle=False)
+    X_train, X_test, y_train, y_test = train_test_split(X_preprocessed, y_all, test_size=0.15, random_state=42, shuffle=False)
+    model = GradientBoostingRegressor(random_state=42)
+    param_grid = {
+        'n_estimators': [300,400],
+        'max_depth': [5, 7],
+        'learning_rate': [0.01, 0.005],
+        'min_samples_split': [2, 5],
+        'min_samples_leaf': [1,3],
+        'subsample': [0.6,0.8],
+        'max_features': ['sqrt', 0.8, 'log2']
+    }
 
-    model = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
+
+    cv_splitter = KFold(n_splits=10, shuffle=True, random_state=42)
+    
+    grid = GridSearchCV(model, param_grid, cv= cv_splitter, scoring='neg_mean_squared_error', n_jobs=-1)
+    grid.fit(X_train, y_train)
+    
+    best_model = grid.best_estimator_
+
+    y_pred = best_model.predict(X_test)
 
     # now need to match best hights
 
     y_pred = np.array(y_pred)
     np_y_test = np.array(y_test)
-    offset = np.mean(y_test - y_pred)
-    y_pred_adjusted = y_pred + offset
+    #offset = np.mean(y_test - y_pred)
+    y_pred_adjusted = y_pred #+ offset
 
     #adding the predicted price change of the last day to the price of the current day
 
@@ -206,13 +226,15 @@ def prediction(X_all, y_all, time_data):
 
     mse = mean_squared_error(current_close, predicted_close)
     r2 = r2_score(current_close, predicted_close)
+    print(f"\nBest params: {grid.best_params_}")
     print(f'\n\n mse: {mse}\nr2: {r2}\n\n')
 
-    return model, y_test, predicted_close, offset, preprocessor
+    return model, y_test, predicted_close, preprocessor#, offset
 
 def plot_predictions(y_test, predicted_close, time_data):
     actual_close = time_data.loc[y_test.index, 'Close']
     predicted_series = pd.Series(predicted_close, index=y_test.index)
+    predicted_series.index = predicted_series.index + 1  
     mse = mean_squared_error(actual_close, predicted_series)
     r2 = r2_score(actual_close, predicted_series)
 
@@ -232,7 +254,7 @@ def plot_predictions(y_test, predicted_close, time_data):
 def run_test(ticker, start_check = minus_time,end_check=today, risk_free_rate=0, lag_time='week'):
     data = get_metrics(ticker, start_check = start_check, end_check=end_check, risk_free_rate = risk_free_rate)
     X_all, y_all, time_data = create_params(data, lag_time=lag_time)
-    model, y_test, predicted_close, offset, preprocessor = prediction(X_all, y_all, time_data)
+    model, y_test, predicted_close, preprocessor = prediction(X_all, y_all, time_data)
     plot_predictions(y_test, predicted_close, time_data)
 
 
@@ -390,5 +412,4 @@ tickers = ['AAPL', 'KO', 'MSFT', 'AMZN', 'NVDA', 'JPM', 'GOOG',"PLTR", "NFLX", "
 X, features = cluster_volatility(tickers)
 plot_clusters(X,features)'''
 
-df = run_predict('MSFT')
-print(f'The next expected value for MSFT is {df}')
+df = run_test('AAPL', start_check='2018-01-01', end_check='2025-06-01', risk_free_rate=0.02, lag_time='week')
