@@ -1,0 +1,34 @@
+ticker filtering - this file is used to get stocks from the nasdaq
+and filter our super volatile and low volume stocks to insure that no
+meme stocks or other stocks that could affect the models data and
+prediction for more common stocks
+
+Notes:
+- mainly the thing you can change is the requirements for the tickers
+
+company_data_value - this file is used complete the training data by 
+by getting looping through the tickers getting every yearly report 
+and then getting the close price in 9 months
+
+Notes:
+-could potentially loop and find the . quarterly to get grater 
+and more similar data
+-might want to make a EV / Ebidta also maybe a rolling average price 
+just to give it a baseline
+
+look.ipynb - this file is simply a tool used to look at the data frames
+created so that the user can verify that the tables look correct
+
+Notes:
+-nothing just a tester file
+
+Learning_based on reports - gets the data and runs it through a
+gradient boosted regressor with around 2-3 potential metrics to try and
+play with to see what gets the best results
+
+Notes:
+- could play with different models outside of gradient boosting
+- could try finding the expected increase then adding it to remove
+the issue of trying to find the price by itself
+-experiment with grater data even if the data is less valuable because
+it is from worse stocks
