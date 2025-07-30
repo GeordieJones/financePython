@@ -13,6 +13,8 @@ from sklearn.model_selection import GridSearchCV, KFold
 from datetime import datetime, timedelta
 from sklearn.metrics import make_scorer, mean_pinball_loss
 import joblib
+from tqdm import tqdm
+import yfinance as yf
 
 
 def all_data_in_one():
@@ -124,5 +126,68 @@ def load_model(model_path='best_model.joblib', preproc_path='preprocessor.joblib
     print("Model and preprocessor loaded!")
     return model, preprocessor
 
+def get_current_metrics():
+    
+    latest_known = datetime(2024, 9, 30)
+
+    # Load tickers from your DataFrame
+    df_ticker = pd.read_pickle('year0_data.pkl')
+    tickers = df_ticker.index.tolist()  # Use .index, not 'symbol', since 'symbol' is the index in your dataset
+
+    target_columns = [
+    'Tax Rate For Calcs', 'Normalized EBITDA', 'EBITDA', 'EBIT',
+    'Normalized Income', 'Total Expenses', 'Diluted EPS', 'Net Income',
+    'Tax Provision', 'Pretax Income', 'Operating Income',
+    'Operating Expense', 'Selling General And Administration',
+    'Total Revenue'
+]
+
+    all_data = []
+    date_for_ticker = {}
+
+    for ticker in tqdm(tickers, desc="Fetching quarterly data"):
+        try:
+            q_fin = yf.Ticker(ticker).quarterly_financials
+            if q_fin is None or q_fin.empty:
+                continue
+
+            latest_quarter = q_fin.columns[0]
+            if latest_quarter <= latest_known:
+                continue
+
+            df = q_fin.T  # Transpose so each row is a quarter
+
+            # Keep only desired columns that are present
+            available_cols = [col for col in target_columns if col in df.columns]
+            df = df[available_cols]
+
+            # Drop rows with any NaNs
+            df_clean = df.dropna()
+            if df_clean.empty:
+                continue
+
+            # Take the most recent cleaned row
+            most_recent = df_clean.iloc[0]
+            most_recent.name = ticker  # Set index as ticker
+            all_data.append(most_recent)
+            date_for_ticker[ticker] = df_clean.index[0] 
+
+
+        except Exception as e:
+            print(f"Error with {ticker}: {e}")
+
+    # Step 5: Create final DataFrame
+    final_df = pd.DataFrame(all_data)
+
+    # Optional: reset index if needed
+    # final_df.reset_index(inplace=True)
+
+    # Step 6: Preview
+    print(f"\nFinal DataFrame with shape: {final_df.shape}")
+    print(final_df.head())
+    return final_df, date_for_ticker
+
 if __name__ == "__main__":
-    load_model()
+    model,preprocessor = load_model()
+    print('Loaded model and preprocessor')
+    
