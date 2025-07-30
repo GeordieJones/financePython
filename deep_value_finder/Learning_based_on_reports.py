@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import os
+from dateutil.relativedelta import relativedelta
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import train_test_split
@@ -187,7 +188,62 @@ def get_current_metrics():
     print(final_df.head())
     return final_df, date_for_ticker
 
-if __name__ == "__main__":
+def predict_future_prices(model, preprocessor, current_df, dates_for_ticker):
+    df = dates_for_ticker.copy()
+
+    df['predicted price date'] = df['Most Recent Quarter'].apply(lambda d: d + relativedelta(months=9))
+
+    missing_tickers = set(df.index) - set(current_df.index)
+    if missing_tickers:
+        print(f"Warning: Missing tickers in current data: {missing_tickers}")
+
+    common_index = df.index.intersection(current_df.index)
+    current_df = current_df.loc[common_index]
+
+    non_nan_mask = current_df.notnull().all(axis=1)
+    current_df = current_df.loc[non_nan_mask]
+
+    df = df.loc[non_nan_mask]
+
+    X_current = preprocessor.transform(current_df)
+    predicted_prices = model.predict(X_current)
+
+
+    df['Predicted_Close_9mo'] = predicted_prices
+
+    return df
+
+def save_predictions(predictions_df, output_path='predicted_prices.csv'):
     model,preprocessor = load_model()
     print('Loaded model and preprocessor')
-    
+    current_df = pd.read_pickle('current_metrics.pkl')
+    dates_for_ticker = pd.read_csv('date_for_ticker.csv', index_col='Ticker')
+    dates_for_ticker['Most Recent Quarter'] = pd.to_datetime(dates_for_ticker['Most Recent Quarter'])
+    predictions_df = predict_future_prices(model, preprocessor, current_df, dates_for_ticker)
+    print(f"Predictions made for {len(predictions_df)} tickers.")
+    predictions_df.to_csv('predicted_prices.csv', index_label='Ticker')
+
+def compare_price_to_predictions(predictions_df):
+    predictions_df = predictions_df.copy()
+
+    for ticker in tqdm(predictions_df.index, desc="Fetching price data"):
+        try:
+            hist = yf.Ticker(ticker).history(period="5d", interval="1d")
+            if not hist.empty:
+                close_price = hist['Close'].dropna().iloc[-1] if not hist['Close'].dropna().empty else None
+            else:
+                close_price = None
+        except Exception as e:
+            print(f"{ticker} failed: {e}")
+            close_price = None
+
+        predictions_df.loc[ticker, 'Actual_Close'] = close_price
+
+    predictions_df['Value %'] = ((predictions_df['Predicted_Close_9mo'] - predictions_df['Actual_Close']) / predictions_df['Actual_Close'] )* 100
+    return predictions_df
+
+if __name__ == "__main__":
+    dates_for_ticker = pd.read_csv('date_for_ticker.csv', index_col='Ticker')
+    predicted = pd.read_csv('predicted_prices.csv', index_col='Ticker')
+    comp = compare_price_to_predictions(predicted)
+    comp.to_csv('predicted_price_with_actual.csv', index_label='Ticker')
