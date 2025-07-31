@@ -532,9 +532,9 @@ def get_future_prices(tickers):
     
     return predicted_prices
 
-def monte_carlo_with_model(model, start_price, X_base, preprocessor, n_simulations = 500, n_days =30, volatility = 0.02):
+def monte_carlo_with_model(model, start_price, X_base, preprocessor, n_simulations = 400, n_days =30 * 6, volatility = 0.02):
     dt = 1 / 252
-    volatility = max(volatility, 0.02)
+    volatility = max(volatility, 0.05)
     feature_means = X_base.mean()
     feature_stds = X_base.std()
 
@@ -596,4 +596,4 @@ def monte_carlo(ticker, start_check = '2020-01-01',end_check='2025-07-29', risk_
     simulations  = monte_carlo_with_model(model, close, X_new, preprocessor, volatility=volatility)
     plot_monte_carlo(simulations)
 
-monte_carlo('AAPL')
+monte_carlo('MSFT')
