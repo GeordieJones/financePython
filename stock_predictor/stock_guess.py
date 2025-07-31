@@ -151,7 +151,7 @@ def get_metrics(ticker, start_check = '2015-01-01',end_check='2025-06-01', risk_
 
     data['adx'] = pandas_ta.adx(high=data['High'], low=data['Low'], close=data['Close'], length=14)['ADX_14']
 
-    data = data.drop(columns=['High', 'Low', 'Open', 'Volume','dollar_volume'])
+    data = data.drop(columns=['High', 'Low', 'Open', 'dollar_volume'])
     data = data.bfill()
 
 
@@ -445,7 +445,7 @@ def get_current_metrics(ticker, risk_free_rate = 0):
 
     data['adx'] = pandas_ta.adx(high=data['High'], low=data['Low'], close=data['Close'], length=14)['ADX_14']
 
-    data = data.drop(columns=['High', 'Low', 'Open', 'Volume','dollar_volume'])
+    data = data.drop(columns=['High', 'Low', 'Open', 'dollar_volume'])
     data = data.fillna(method='bfill')
 
     data['returns_7d_mean'] = data['returns'].rolling(window=7).mean().bfill()
@@ -454,7 +454,7 @@ def get_current_metrics(ticker, risk_free_rate = 0):
 
     print(data.iloc[[-1]])
 
-    return data.iloc[[-1]]
+    return data.iloc[[-1]], data['rolling_volatility'].iloc[-1], data['Close'].iloc[-1]
 
 def next_prediction(X_new, model, preprocessor):
     X_new_preprocessed = preprocessor.transform(X_new)
@@ -532,7 +532,68 @@ def get_future_prices(tickers):
     
     return predicted_prices
 
-guess = run_predict('RKLB', start_check='2020-01-01',end_check='2025-07-29', risk_free_rate=0.02, lag_time='week')
-print(f'RKLB: {guess}')
+def monte_carlo_with_model(model, start_price, X_base, preprocessor, n_simulations = 500, n_days =30, volatility = 0.02):
+    dt = 1 / 252
+    volatility = max(volatility, 0.02)
+    feature_means = X_base.mean()
+    feature_stds = X_base.std()
+
+    simulations = np.zeros((n_simulations, n_days + 1))
+    simulations[:, 0] = float(start_price)
+    for sim in range(n_simulations):
+        price = start_price
+        current_features = np.random.normal(loc=feature_means, scale=feature_stds)
+        for day in range(1, n_days + 1):
+            noise = np.random.normal(loc=0.0, scale=feature_stds * 0.2)
+            current_features = current_features + noise
+            if 'Close' in X_base.columns:
+                close_idx = X_base.columns.get_loc('Close')
+                current_features[close_idx] = price
+            random_features_df = pd.DataFrame([current_features], columns=X_base.columns)
+            transformed_features = preprocessor.transform(random_features_df)
+            predicted_change =  model.predict(transformed_features)[0]
+            predicted_price = price + predicted_change
+            predicted_return = np.log(predicted_price / price)
+            # Add some randomness to simulate uncertainty
+            drift = (predicted_return - 0.5 * volatility**2) * dt
+            shock = volatility * np.sqrt(dt) * np.random.normal()
+            log_price = drift + shock
+
+            price *= np.exp(log_price)
+            simulations[sim, day] = price
+
+        #print(f'final price on sim {sim}: ${simulations[sim, -1]:.2f}')
+    final_prices = simulations[:, -1]
+    avg_price = np.mean(final_prices)
+    max_price = np.max(final_prices)
+    min_price = np.min(final_prices)
+    pct_change_avg = (avg_price - start_price) / start_price * 100
 
 
+    print(f"\nMonte Carlo Simulation Results after {n_days} days:")
+    print(f"Average Final Price: ${avg_price:.2f}")
+    print(f"Highest Final Price: ${max_price:.2f}")
+    print(f"Lowest Final Price : ${min_price:.2f}")
+    print(f"Average % Change: {pct_change_avg:.2f}%")
+    return simulations
+
+def plot_monte_carlo(simulations):
+    plt.figure(figsize=(12,6))
+    for i in range(100):  # plot only 100 simulations for clarity
+        plt.plot(simulations[i], alpha=0.1, color='blue')
+
+    plt.title("Monte Carlo Simulation of Predicted Stock Prices")
+    plt.xlabel("Day")
+    plt.ylabel("Price")
+    plt.grid(True)
+    plt.show()
+
+def monte_carlo(ticker, start_check = '2020-01-01',end_check='2025-07-29', risk_free_rate=0.2, lag_time='week'):
+    data = get_metrics(ticker, start_check = start_check, end_check=end_check, risk_free_rate = risk_free_rate)
+    X_all, y_all, time_data = create_params(data, lag_time=lag_time)
+    model, y_test, predicted_close, preprocessor = find_best_model_prediction(X_all, y_all, time_data)
+    X_new , volatility, close = get_current_metrics(ticker)
+    simulations  = monte_carlo_with_model(model, close, X_new, preprocessor, volatility=volatility)
+    plot_monte_carlo(simulations)
+
+monte_carlo('AAPL')
