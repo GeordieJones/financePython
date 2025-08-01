@@ -145,7 +145,6 @@ series_dict = {
         'India_GDP': 'INDGDPNQDSMEI',
         'Germany_GDP': 'DEUGDPNQDSMEI',
         'Japan_GDP': 'JPNNGDP',
-        'UK_GDP': 'GBRNGDP'
     }
 }
 
@@ -179,7 +178,80 @@ def macro_data_combined(resample_to='D'):
 
     return all_df
 
-# Example usage
-macro_df = macro_data_combined(resample_to='D')
-macro_df.to_csv('macro_data.csv', index_label='Date')
-print(macro_df.tail())
+def add_days_since():
+    df = pd.read_csv('macro_data.csv', parse_dates=['Date'])
+    df.set_index('Date', inplace=True)
+    days_since_df = pd.DataFrame(index=df.index)
+    for col in df.columns:
+        valid_mask = df[col].notna()
+        
+        # Create a Series that is 0 on update days, 1 otherwise
+        missing_mask = (~valid_mask).astype(int)
+
+        # Cumulative sum of missing days, reset at each valid data point
+        days_since = missing_mask.cumsum() - missing_mask.cumsum().where(valid_mask).ffill().fillna(0)
+        days_since.name = f"{col}_days_since_last_update"
+
+        # Add to the new DataFrame
+        days_since_df[days_since.name] = days_since.astype('Int64')
+        
+
+    final_df = pd.concat([df, days_since_df], axis=1)
+    final_df.dropna(axis=1, how='all', inplace=True)
+    stale_cols = [col for col in final_df.columns if 'days_since_last_update' in col and final_df[col].max() > 365]
+    data_cols_to_drop = [col.replace('_days_since_last_update', '') for col in stale_cols]
+    cols_to_drop = [col for col in stale_cols + data_cols_to_drop if col in final_df.columns]
+    final_df.drop(columns=cols_to_drop, inplace=True)
+
+    final_df = final_df.ffill()
+    print(final_df.columns)
+    final_df.to_csv('macro_data_with_days_since.csv', index=True)
+
+def read_and_add_excel_data():
+    df = pd.read_csv('macro_data.csv', parse_dates=['Date'])
+    df.set_index('Date', inplace=True)
+    header_row = pd.read_excel("ie_data.xls", sheet_name="Data",nrows=1, skiprows=7)
+    xls_df = pd.read_excel("ie_data.xls", sheet_name="Data", header=None, skiprows=7)
+    header_row = header_row.astype(str)
+
+    header_row_clean = []
+    for i, val in enumerate(header_row):
+        try:
+            # Try to convert to float
+            float_val = float(val)
+            # If successful, replace with placeholder name
+            header_row_clean.append(f"Col_{i}")
+        except ValueError:
+            # Not a number, keep original string
+            header_row_clean.append(val.strip())
+
+    # Assign cleaned header row as columns
+    xls_df.columns = header_row_clean
+    cols_to_drop = [col for col in xls_df.columns if col.startswith("Unnamed") or col.startswith("Col_")]
+    xls_df.drop(columns=cols_to_drop, inplace=True)
+
+    date_col = header_row_clean[0]
+    xls_df[date_col] = pd.to_numeric(xls_df[date_col], errors='coerce')
+    xls_df.dropna(subset=[date_col], inplace=True)
+    xls_df = xls_df[xls_df[date_col] >= 2006.0]
+
+    xls_df = xls_df.rename(columns={xls_df.columns[0]: 'Date'})
+    xls_df['Date'] = pd.to_datetime(xls_df['Date'].astype(str).str.replace('.', '-'), format='%Y-%m')
+    xls_df.set_index('Date', inplace=True)
+    # Drop all columns where the column name contains 'Unnamed'
+    cols_to_drop = [col for col in xls_df.columns if 'Unnamed' in str(col)]
+    xls_df = xls_df.drop(columns=cols_to_drop)
+
+
+    overlapping_cols = set(df.columns).intersection(set(xls_df.columns))
+    if overlapping_cols:
+        print(f"Dropping overlapping columns from Excel data: {overlapping_cols}")
+        xls_df = xls_df.drop(columns=overlapping_cols)
+    merged_df = df.join(xls_df, how='left')
+
+    cols_to_drop_post_merge = [col for col in merged_df.columns if 'Unnamed' in str(col)]
+    merged_df.to_csv('macro_data.csv', index=True)
+    print(f"Merged data saved to macro_data")
+
+read_and_add_excel_data()
+add_days_since()
