@@ -261,8 +261,44 @@ def read_and_add_excel_data():
     merged_df.to_csv('macro_data.csv')
     print("Merged data saved to macro_data.csv")
 
-df = macro_data_combined()
-df.to_csv('macro_data.csv', index_label='Date') 
 
-read_and_add_excel_data()
-add_days_since()
+def add_rolling_and_percent():
+    df = pd.read_csv('macro_data_with_days_since.csv', parse_dates=['Date'])
+    df.set_index('Date', inplace=True)
+
+    rolling_windows = [90, 180, 360]  # in days
+
+    new_cols = []  # list of DataFrames with new columns
+
+    for col in df.columns:
+        if not col.endswith('_days_since_last_update'):
+            pct_change = df[col].pct_change().rename(f'{col}_pct_change')
+            new_cols.append(pct_change.to_frame())
+
+            for window in rolling_windows:
+                roll_mean = df[col].rolling(window).mean().rename(f'{col}_roll_mean_{window}')
+                roll_std = df[col].rolling(window).std().rename(f'{col}_roll_std_{window}')
+                new_cols.append(roll_mean.to_frame())
+                new_cols.append(roll_std.to_frame())
+
+    new_data = pd.concat(new_cols, axis=1)
+
+    df = pd.concat([df, new_data], axis=1)
+
+    print(f'amount of columns:  {len(df.columns)} \n\n columns: {df.columns}')
+    df.to_csv('macro_data_with_rolling.csv', index=True)
+
+def refresh_data():
+    df = macro_data_combined()
+    df.to_csv('macro_data.csv', index_label='Date') 
+
+    read_and_add_excel_data()
+    add_days_since()
+    add_rolling_and_percent()
+
+    df = pd.read_csv('macro_data_with_rolling.csv', parse_dates=['Date'])
+    df.set_index('Date', inplace=True)
+    df.iloc[:365] = df.iloc[:365].bfill()
+    df.iloc[365:] = df.iloc[365:].ffill()
+    df.to_csv('macro_data_with_rolling.csv')
+
