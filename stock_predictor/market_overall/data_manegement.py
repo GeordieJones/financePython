@@ -206,52 +206,62 @@ def add_days_since():
     final_df = final_df.ffill()
     print(final_df.columns)
     final_df.to_csv('macro_data_with_days_since.csv', index=True)
+import pandas as pd
 
 def read_and_add_excel_data():
+    # Read header row only (skiprows=7 as your data starts there)
+    header_df = pd.read_excel("ie_data.xls", sheet_name="Data", nrows=1, skiprows=7, header=None)
+    header_row = header_df.iloc[0].astype(str).tolist()
+    
+    # Find how many columns have proper names (non-empty, non-numeric, non-Unnamed)
+    def is_valid_col_name(name):
+        if not name or 'Unnamed' in name:
+            return False
+        try:
+            float(name)
+            return False  # numeric name -> skip
+        except:
+            return True
+
+    valid_col_count = 0
+    for col_name in header_row:
+        if is_valid_col_name(col_name):
+            valid_col_count += 1
+        else:
+            break  # stop counting as soon as we hit first invalid col
+
+    print(f"Number of valid columns detected: {valid_col_count}")
+    
+    # Read data with only those valid columns
+    # Note: we skip the header row and read data only (header=None)
+    xls_df = pd.read_excel("ie_data.xls", sheet_name="Data", header=None, skiprows=8, usecols=range(valid_col_count))
+
+    # Assign cleaned header names (you can rename first col as 'Date' if you want)
+    cleaned_headers = header_row[:valid_col_count]
+    cleaned_headers[0] = 'Date'  # rename first col to Date
+    xls_df.columns = cleaned_headers
+
+    # Proceed with rest of your processing here...
+
+    # Example: convert Date column properly
+    xls_df['Date'] = pd.to_datetime(xls_df['Date'].astype(str).str.replace('.', '-'), format='%Y-%m', errors='coerce')
+    xls_df.dropna(subset=['Date'], inplace=True)
+    xls_df.set_index('Date', inplace=True)
+
+    # Now join with existing macro_data.csv
     df = pd.read_csv('macro_data.csv', parse_dates=['Date'])
     df.set_index('Date', inplace=True)
-    header_row = pd.read_excel("ie_data.xls", sheet_name="Data",nrows=1, skiprows=7)
-    xls_df = pd.read_excel("ie_data.xls", sheet_name="Data", header=None, skiprows=7)
-    header_row = header_row.astype(str)
-
-    header_row_clean = []
-    for i, val in enumerate(header_row):
-        try:
-            # Try to convert to float
-            float_val = float(val)
-            # If successful, replace with placeholder name
-            header_row_clean.append(f"Col_{i}")
-        except ValueError:
-            # Not a number, keep original string
-            header_row_clean.append(val.strip())
-
-    # Assign cleaned header row as columns
-    xls_df.columns = header_row_clean
-    cols_to_drop = [col for col in xls_df.columns if col.startswith("Unnamed") or col.startswith("Col_")]
-    xls_df.drop(columns=cols_to_drop, inplace=True)
-
-    date_col = header_row_clean[0]
-    xls_df[date_col] = pd.to_numeric(xls_df[date_col], errors='coerce')
-    xls_df.dropna(subset=[date_col], inplace=True)
-    xls_df = xls_df[xls_df[date_col] >= 2006.0]
-
-    xls_df = xls_df.rename(columns={xls_df.columns[0]: 'Date'})
-    xls_df['Date'] = pd.to_datetime(xls_df['Date'].astype(str).str.replace('.', '-'), format='%Y-%m')
-    xls_df.set_index('Date', inplace=True)
-    # Drop all columns where the column name contains 'Unnamed'
-    cols_to_drop = [col for col in xls_df.columns if 'Unnamed' in str(col)]
-    xls_df = xls_df.drop(columns=cols_to_drop)
-
 
     overlapping_cols = set(df.columns).intersection(set(xls_df.columns))
     if overlapping_cols:
         print(f"Dropping overlapping columns from Excel data: {overlapping_cols}")
-        xls_df = xls_df.drop(columns=overlapping_cols)
-    merged_df = df.join(xls_df, how='left')
+        xls_df.drop(columns=overlapping_cols, inplace=True)
 
-    cols_to_drop_post_merge = [col for col in merged_df.columns if 'Unnamed' in str(col)]
-    merged_df.to_csv('macro_data.csv', index=True)
-    print(f"Merged data saved to macro_data")
+    merged_df = df.join(xls_df, how='left')
+    merged_df.to_csv('macro_data.csv')
+    print("Merged data saved to macro_data.csv")
+
+
 
 read_and_add_excel_data()
 add_days_since()
