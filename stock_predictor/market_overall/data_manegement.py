@@ -20,6 +20,7 @@ market_groups = {
 
 def plot_movements():
     all_markets = []
+    final_gain = []
     plt.figure(figsize=(14, 8))
     for group_name, tickers in tqdm(market_groups.items(), desc="Downloading & Processing"):
         try:
@@ -43,6 +44,8 @@ def plot_movements():
                 'Market': group_name
             })
             all_markets.append(group_df)
+            final_gain.append(group_df['NormalizedPrice'].iloc[-1])
+            print(f"\nfinal return for {group_df['Market'].iloc[-1]}: {group_df['NormalizedPrice'].iloc[-1]}")
             time.sleep(5)
             plt.plot(avg_group.index, avg_group, label=group_name)
         except Exception as e:
@@ -56,7 +59,16 @@ def plot_movements():
     plt.tight_layout()
     plt.show()
     final_df = pd.concat(all_markets)
-    final_df.to_csv('market_data.csv', index=False)
+    group_names = list(market_groups.keys())
+    avg_ret = sum(final_gain)/ len(final_gain)
+    best_return = 0
+    best_ticker = ''
+    for i in range(len(final_gain)):
+        if final_gain[i] > best_return:
+            best_return = final_gain[i]
+            best_ticker = group_names[i]
+
+    print(f'the best return was {best_ticker} with a return of {best_return}\n average return was {avg_ret}')
 
 
 
