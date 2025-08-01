@@ -261,7 +261,8 @@ def read_and_add_excel_data():
     merged_df.to_csv('macro_data.csv')
     print("Merged data saved to macro_data.csv")
 
-
+df = macro_data_combined()
+df.to_csv('macro_data.csv', index_label='Date') 
 
 read_and_add_excel_data()
 add_days_since()
